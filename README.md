@@ -1,75 +1,286 @@
-# Test Bench Embragues — PMO Charter
+# 🏭 Charter — Suite PMO para Onboarding de Proyectos Industriales
 
-> Proyecto de ingeniería industrial: banco de pruebas para embragues mecánicos.
-
-## 📁 Estructura del proyecto
-
-```
-.
-├── README.md                              ← Este archivo
-├── TEST_BENCH_EMBRAGUES_DOSSIER_v1.md    ← Dossier PMO completo
-├── TEST_BENCH_EMBRAGUES_EDT.md           ← EDT / WBS del proyecto
-├── TEST_BENCH_EMBRAGUES_GANTT.html       ← Diagrama de Gantt interactivo
-└── charter-worker/                       ← Worker FastAPI (API + agentes AI)
-    ├── main.py                           ← FastAPI app
-    ├── agents/                           ← Agentes (agno)
-    │   ├── charter_agent.py
-    │   ├── dossier_agent.py
-    │   ├── dossier_team.py
-    │   ├── extractor_agent.py
-    │   ├── kickoff_agent.py
-    │   └── llm_wrapper.py
-    ├── services/                         ← Servicios (LLM, extracción)
-    ├── requirements.txt
-    ├── .env.example
-    └── .gitignore
-```
-
-## 🎯 Datos clave
-
-| Campo | Valor |
-|---|---|
-| **Cliente** | AARIAS SANTA S.L. — División Industrial |
-| **Ubicación** | Nave 7, Pol. Ind. Los Molinos, Getafe (Madrid) |
-| **Presupuesto** | ~55.500 € + 10% contingencia |
-| **Plazo** | 28 semanas (Sep 2026 – Feb 2027) |
-| **Estado** | Pre-ejecución |
-
-## 🚀 Ejecutar el charter-worker
-
-```bash
-cd charter-worker
-cp .env.example .env        # editar .env con tu API key
-pip install -r requirements.txt
-uvicorn main:app --reload   # API en http://localhost:8000
-```
-
-**Endpoints:**
-
-| Método | Ruta | Descripción |
-|---|---|---|
-| `POST` | `/documents` | Genera dossier + charter + kickoff en paralelo |
-| `POST` | `/dossier` | Genera dossier (compatibilidad) |
-| `GET` | `/dossier/{id}/markdown` | Descarga dossier `.md` |
-| `GET` | `/dossier/{id}/charter` | Descarga charter `.md` |
-| `GET` | `/dossier/{id}/kickoff` | Descarga kickoff `.md` |
-| `GET` | `/results/{job_id}` | Recupera JSON completo |
-| `GET` | `/docs` | Documentación Swagger UI |
-
-## 📊 EDT — Estructura de Descomposición del Trabajo
-
-1. Gestión del proyecto
-2. Diseño de ingeniería
-3. Sistema hidráulico
-4. Sistema de adquisición de datos
-5. Montaje e integración
-6. Pruebas y validación
-7. Entrega y documentación
-
-## 📈 Gantt
-
-Abre `TEST_BENCH_EMBRAGUES_GANTT.html` directamente en el navegador para ver la planificación interactiva Sem. 1–28.
+> **Transforma una oferta de proyecto industrial en documentación profesional de gestión:**
+> Dossier de Proyecto, Acta de Constitución (Project Charter) y Agenda de Kick-off,
+> generando una EDT completa, cronograma Gantt y matrix RACI.
+> Metodología: **Predictiva — PMBOK 8ª Edición**.
 
 ---
 
-Generado con [MiniMax Code](https://maxcode.minimax.io) · Agente PMO Charter
+## ¿Qué es Charter?
+
+**Charter** es una suite PMO de onboarding que, a partir de una oferta comercial de un proyecto industrial (banco de ensayos, instalación, retrofit, etc.), genera automáticamente:
+
+| Documento | Descripción |
+|---|---|
+| 📋 **Project Charter** | Acta de constitución formal del proyecto con sponsor, objetivos, alcance, restricciones y criterios de éxito |
+| 📁 **Dossier de Gestión** | Dossier completo con EDT, cronograma, presupuesto, hitos de pago, matriz de riesgos, matrix RACI y especificaciones técnicas |
+| 🚀 **Agenda de Kick-off** | Orden del día estructurada para la reunión de inicio con el cliente |
+| 📊 **Gantt visual** | Diagrama de Gantt interactivo exportable (HTML/SVG) |
+| 🗂️ **EDT completa** | Estructura de Desglose del Trabajo en formato tabular jerárquico |
+
+Los documentos se generan mediante **agentes LLM especializados** (agno) orquestados por un pipeline asíncrono. El presupuesto, plazos, hitos y riesgos se extraen **directamente del texto de la oferta** sin invenciones ni estimaciones ficticias.
+
+---
+
+## Arquitectura del sistema
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      CHARTER SUITE                           │
+│                                                              │
+│   ┌─────────────────┐         ┌──────────────────────────┐  │
+│   │   charter-app    │         │      charter-worker      │  │
+│   │  (Next.js Web)   │───HTTP──│   (FastAPI + agno)       │  │
+│   │   puerto 3000    │         │   puerto 7860            │  │
+│   └─────────────────┘         └──────────────────────────┘  │
+│           │                              │                   │
+│           ▼                              ▼                   │
+│   SQLite: charter.db          Agentes LLM                      │
+│   (resultados + polling)     ┌─────────────────────────┐      │
+│                             │ ExtractorAgent          │      │
+│                             │  → extrae charter dict   │      │
+│                             └──────────┬──────────────┘      │
+│                                        │                     │
+│                              ┌─────────┼─────────┐           │
+│                              ▼         ▼         ▼           │
+│                       ┌──────────┐┌─────────┐┌───────────┐   │
+│                       │ Dossier  ││ Charter ││  Kickoff  │   │
+│                       │  Agent   ││  Agent  ││   Agent   │   │
+│                       │ secciones││ charter ││  agenda   │   │
+│                       │  1-14    ││ formal  ││ kick-off  │   │
+│                       └──────────┘└─────────┘└───────────┘   │
+│                              3 docs en paralelo              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Stack tecnológico:**
+- **Frontend:** Next.js 15 + TypeScript + Tailwind CSS + Shadcn UI
+- **Backend:** FastAPI 0.115 + Uvicorn + Pydantic 2
+- **Agentes IA:** agno 1.4.5 (Agent SDK)
+- **Modelos LLM:** configurable (MiniMax, OpenAI, Anthropic, etc.)
+- **Base de datos:** SQLite (charter-app) + persistencia en disco (worker)
+- **Visualización:** HTML/SVG editorial con diagram-design
+
+---
+
+## Pipeline de generación
+
+```
+Oferta comercial (texto PDF/email)
+        │
+        ▼
+┌───────────────────┐
+│ ExtractorAgent    │  ← extrae campos estructurados del texto
+│  (agno agent)     │    sin inventar datos no presentes
+└────────┬──────────┘
+         │ charter dict
+         │  • project_name
+         │  • total_budget (validado vs fuente)
+         │  • start_date / end_date
+         │  • milestones
+         │  • tasks
+         │  • risks
+         │  • stakeholders
+         │  • deliverables
+         ▼
+  ┌──────┴───────┬──────────┐
+  ▼              ▼          ▼
+ DossierAgent  Charter    Kickoff
+  Agent        Agent      Agent
+  │            │          │
+  ▼            ▼          ▼
+Dossier MD  Charter MD  Kickoff MD
+ (14 secs)  (paralelo)  (paralelo)
+  │
+  ▼
+EDT tabular
+Cronograma
+Riesgos
+RACI
+```
+
+---
+
+## Primeros pasos
+
+### 1. Configurar el worker
+
+```bash
+cd worker
+
+# Instalar dependencias
+pip install -r requirements.txt
+
+# Configurar variables de entorno
+cp .env.example .env
+# Editar .env con tu API key de MiniMax u otro proveedor
+
+# Ejecutar el worker
+uvicorn main:app --host 0.0.0.0 --port 7860 --reload
+```
+
+### 2. Configurar la web (opcional — en desarrollo)
+
+```bash
+cd ../web
+npm install
+npm run dev
+```
+
+### 3. Generar documentos desde CLI
+
+```bash
+# Crear un archivo con el texto de la oferta
+echo "Nuestra empresa ofrece el suministro..." > /tmp/oferta.txt
+
+# Llamar al endpoint /documents (genera los 3 documentos)
+curl -X POST http://localhost:7860/documents \
+  -H "Content-Type: application/json" \
+  -d '{"offer_text": "..."}' | jq
+```
+
+---
+
+## API Reference
+
+### `POST /documents`
+
+Genera los 3 documentos (dossier + charter + kickoff) en paralelo.
+
+**Request:**
+```json
+{
+  "offer_text": "Texto completo de la oferta comercial...",
+  "extraction_id": "uuid-opcional",
+  "timeout_extractor": 360.0,
+  "timeout_dossier": 360.0
+}
+```
+
+**Response:**
+```json
+{
+  "extraction_id": "abc12345",
+  "charter": {
+    "project_name": "Banco de Ensayos de Embragues",
+    "total_budget": "€74.356,00",
+    "start_date": "2026-09-01",
+    "end_date": "2027-02-28",
+    "milestones": [...],
+    "tasks": [...],
+    "risks": [...]
+  },
+  "dossier_md": "# DOSSIER DE GESTIÓN DE PROYECTO\n\n...",
+  "charter_md": "# ACTA DE CONSTITUCIÓN\n\n...",
+  "kickoff_md": "# AGENDA DE REUNIÓN DE KICK-OFF\n\n...",
+  "stats": {
+    "extractor_time_s": 12.3,
+    "total_time_s": 45.7
+  }
+}
+```
+
+### `POST /dossier` *(legacy)*
+
+Genera solo el dossier (compatibilidad hacia atrás).
+
+### `GET /health`
+
+Estado del worker, jobs activos y contadores.
+
+---
+
+## Variables de entorno
+
+| Variable | Descripción | Default |
+|---|---|---|
+| `MINIMAX_API_KEY` | API key de MiniMax | — |
+| `MINIMAX_BASE_URL` | Base URL del API | `https://api.minimax.chat` |
+| `LLM_MODEL` | Modelo a usar | `MiniMax/MiniMax-Text-01` |
+| `LLM_TIMEOUT` | Timeout por request (s) | `120` |
+| `LLM_MAX_TOKENS` | Tokens máximos de salida | `8192` |
+| `CHARTER_APP_DB` | Ruta a SQLite del charter-app | `/tmp/ingenieria-pmo/charter.db` |
+
+---
+
+## Estructura del repositorio
+
+```
+charter/
+├── README.md                  ← este archivo
+├── PMBOK.md                   ← mapeo de prácticas vs PMBOK 8ª
+├── .gitignore
+├── .env.example
+│
+├── web/                       ← charter-app (Next.js frontend)
+│   ├── src/
+│   │   ├── app/               ← App Router (offer/, results/)
+│   │   ├── components/        ← Componentes React
+│   │   ├── lib/               ← DB client, API client
+│   │   └── types/             ← TypeScript types
+│   └── package.json
+│
+├── worker/                    ← charter-worker (FastAPI + agno)
+│   ├── main.py                ← FastAPI app + endpoints
+│   ├── requirements.txt
+│   ├── .env.example
+│   ├── .gitignore
+│   ├── agents/
+│   │   ├── llm_wrapper.py     ← Wrapper agno con retry + timeout
+│   │   ├── extractor_agent.py ← Extrae charter dict de la oferta
+│   │   ├── dossier_agent.py   ← Genera dossier de gestión
+│   │   ├── charter_agent.py   ← Genera Project Charter formal
+│   │   ├── kickoff_agent.py   ← Genera agenda de kick-off
+│   │   └── dossier_team.py    ← Pipeline orchestrator
+│   └── services/
+│       ├── llm_client.py       ← build_llm_model()
+│       └── extract_text.py     ← Utilidades de extracción
+│
+└── docs/
+    ├── PMBOK.md               ← Alineación con PMBOK 8ª
+    ├── DOSSIER_ejemplo.md     ← Ejemplo generado
+    ├── EDT_ejemplo.md         ← EDT del ejemplo
+    └── GANTT_ejemplo.html     ← Gantt visual del ejemplo
+```
+
+---
+
+## Alineación con PMBOK 8ª Edición
+
+Charter implementa prácticas de la **8ª Edición del PMBOK** (Project Management Institute, 2025):
+
+| Práctica Charter | Dominio PMBOK 8 | Descripción |
+|---|---|---|
+| **ExtractorAgent** | Desarrollo del negocio | Análisis de caso de negocio y propuesta de valor |
+| **DossierAgent** | Planificación | EDT, cronograma, presupuesto, riesgos, recursos |
+| **CharterAgent** | Iniciación | Acta de constitución formal con sponsor y criterios de éxito |
+| **KickoffAgent** | Ejecución | Reunión de inicio y compromiso del equipo |
+| **Validación vs fuente** | Calidad | El presupuesto y hitos se validan contra el texto de la oferta |
+| **Riesgos del proyecto** | Gestión de riesgos | Matriz de riesgos con probabilidad e impacto |
+| **Stakeholders** | Partes interesadas | Identificación de sponsor, equipo, cliente y terceros |
+| **Hitos de pago** | Gestión de adquisiciones | Condiciones de pago vinculadas a hitos de aceptación |
+
+Ver [PMBOK.md](PMBOK.md) para el mapeo detallado.
+
+---
+
+## Développement
+
+```bash
+# Worker
+cd worker
+pip install -r requirements.txt
+pytest test_imports.py test_end_to_end.py -v
+
+# Web (en desarrollo)
+cd ../web
+npm install
+npm run dev
+```
+
+---
+
+## Licence
+
+MIT — Alfredo Arias Santa, 2026.
