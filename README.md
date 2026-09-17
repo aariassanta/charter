@@ -32,7 +32,7 @@ Los documentos se generan mediante **agentes LLM especializados** (agno) orquest
 │   ┌─────────────────┐         ┌──────────────────────────┐  │
 │   │   charter-app    │         │      charter-worker      │  │
 │   │  (Next.js Web)   │───HTTP──│   (FastAPI + agno)       │  │
-│   │   puerto 3000    │         │   puerto 7860            │  │
+│   │   puerto 3000    │         │   puerto 8765            │  │
 │   └─────────────────┘         └──────────────────────────┘  │
 │           │                              │                   │
 │           ▼                              ▼                   │
@@ -107,25 +107,31 @@ RACI
 ### 1. Configurar el worker
 
 ```bash
-cd worker
+cd charter-worker
 
 # Instalar dependencias
 pip install -r requirements.txt
 
 # Configurar variables de entorno
 cp .env.example .env
-# Editar .env con tu API key de MiniMax u otro proveedor
+# Editar .env con tu API key de MiniMax
 
 # Ejecutar el worker
-uvicorn main:app --host 0.0.0.0 --port 7860 --reload
+CHARTER_APP_DB=~/pmo-ingenieria/charter.db \
+MINIMAX_API_KEY=tu_api_key \
+MINIMAX_BASE_URL=https://api.minimax.io/v1 \
+MINIMAX_MODEL=MiniMax-M2.7 \
+MINIMAX_BUDGET_LIMIT=50 \
+python3 -m uvicorn main:app --port 8765
 ```
 
-### 2. Configurar la web (opcional — en desarrollo)
+### 2. Configurar la web
 
 ```bash
-cd ../web
+cd charter-app
 npm install
 npm run dev
+# Requiere: CHARTER_WORKER_URL=http://localhost:8765 en .env.local
 ```
 
 ### 3. Generar documentos desde CLI
@@ -135,7 +141,7 @@ npm run dev
 echo "Nuestra empresa ofrece el suministro..." > /tmp/oferta.txt
 
 # Llamar al endpoint /documents (genera los 3 documentos)
-curl -X POST http://localhost:7860/documents \
+curl -X POST http://localhost:8765/documents \
   -H "Content-Type: application/json" \
   -d '{"offer_text": "..."}' | jq
 ```
@@ -200,7 +206,7 @@ Estado del worker, jobs activos y contadores.
 | `LLM_MODEL` | Modelo a usar | `MiniMax/MiniMax-Text-01` |
 | `LLM_TIMEOUT` | Timeout por request (s) | `120` |
 | `LLM_MAX_TOKENS` | Tokens máximos de salida | `8192` |
-| `CHARTER_APP_DB` | Ruta a SQLite del charter-app | `/tmp/ingenieria-pmo/charter.db` |
+| `CHARTER_APP_DB` | Ruta a SQLite del charter-app | `~/pmo-ingenieria/charter.db` |
 
 ---
 
@@ -213,7 +219,7 @@ charter/
 ├── .gitignore
 ├── .env.example
 │
-├── web/                       ← charter-app (Next.js frontend)
+├── charter-app/               ← Next.js frontend
 │   ├── src/
 │   │   ├── app/               ← App Router (offer/, results/)
 │   │   ├── components/        ← Componentes React
@@ -221,7 +227,7 @@ charter/
 │   │   └── types/             ← TypeScript types
 │   └── package.json
 │
-├── worker/                    ← charter-worker (FastAPI + agno)
+├── charter-worker/            ← FastAPI + agno
 │   ├── main.py                ← FastAPI app + endpoints
 │   ├── requirements.txt
 │   ├── .env.example
@@ -269,12 +275,12 @@ Ver [PMBOK.md](PMBOK.md) para el mapeo detallado.
 
 ```bash
 # Worker
-cd worker
+cd charter-worker
 pip install -r requirements.txt
 pytest test_imports.py test_end_to_end.py -v
 
-# Web (en desarrollo)
-cd ../web
+# Web
+cd ../charter-app
 npm install
 npm run dev
 ```
