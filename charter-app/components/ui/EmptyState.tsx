@@ -1,21 +1,50 @@
-interface EmptyStateProps {
+import React from "react";
+import type { LucideIcon } from "lucide-react";
+
+export function EmptyState({
+  icon: Icon,
+  title,
+  description,
+  action,
+}: {
+  icon?: LucideIcon;
   title: string;
   description?: string;
   action?: React.ReactNode;
-}
-
-export function EmptyState({ title, description, action }: EmptyStateProps) {
+}) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-      <div className="mb-4 text-slate-300">
-        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-          <rect x="8" y="6" width="32" height="36" rx="4" stroke="currentColor" strokeWidth="2" />
-          <path d="M16 16h16M16 24h10M16 32h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        </svg>
-      </div>
-      <h3 className="text-base font-semibold text-slate-800 mb-1">{title}</h3>
-      {description && <p className="text-sm text-slate-500 mb-4 max-w-xs">{description}</p>}
-      {action}
+    <div
+      style={{
+        textAlign: "center",
+        padding: "var(--space-10) var(--space-4)",
+        color: "var(--mid)",
+      }}
+    >
+      {Icon && (
+        <Icon
+          size={32}
+          strokeWidth={1.4}
+          style={{ marginBottom: "var(--space-3)", opacity: 0.7 }}
+          aria-hidden="true"
+        />
+      )}
+      <h3
+        style={{
+          fontFamily: "var(--font-display)",
+          fontStyle: "italic",
+          fontSize: "1.25rem",
+          marginBottom: "var(--space-2)",
+          color: "var(--ink)",
+        }}
+      >
+        {title}
+      </h3>
+      {description && (
+        <p style={{ maxWidth: 420, margin: "0 auto var(--space-4)", color: "var(--mid)" }}>
+          {description}
+        </p>
+      )}
+      {action && <div>{action}</div>}
     </div>
   );
 }

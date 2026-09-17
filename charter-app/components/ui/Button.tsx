@@ -1,36 +1,62 @@
-import { ButtonHTMLAttributes, forwardRef } from "react";
-import { clsx } from "clsx";
+"use client";
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary" | "ghost" | "danger";
-  size?: "sm" | "md" | "lg";
+import React from "react";
+
+type ButtonVariant = "filled" | "outline" | "ghost" | "danger";
+type ButtonSize = "sm" | "md" | "lg";
+
+type CommonProps = {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+};
+
+type ButtonProps = CommonProps &
+  Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "children" | "className"> & {
+    as?: "button";
+  };
+
+type LinkProps = CommonProps & {
+  as: "a";
+  href: string;
+  target?: string;
+  rel?: string;
+};
+
+type AnchorButtonProps = CommonProps & {
+  as?: "button";
+};
+
+function classes(variant: ButtonVariant, size: ButtonSize, extra?: string) {
+  const cn = `btn btn--${variant} btn--${size}`;
+  return extra ? `${cn} ${extra}` : cn;
 }
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "primary", size = "md", children, ...props }, ref) => {
+export function Button(props: ButtonProps | LinkProps) {
+  const { variant = "filled", size = "md", icon, children, className = "", style } = props;
+  const cn = classes(variant, size, className);
+
+  if ("as" in props && props.as === "a") {
+    const { as: _a, variant: _v, size: _s, icon: _i, className: _c, style: _s2, href, target, rel, children: _ch, ...rest } = props as LinkProps;
+    void _a; void _v; void _s; void _i; void _c; void _s2; void _ch;
     return (
-      <button
-        ref={ref}
-        className={clsx(
-          "inline-flex items-center justify-center gap-1.5 font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed",
-          {
-            "bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500": variant === "primary",
-            "bg-slate-100 text-slate-700 hover:bg-slate-200 focus:ring-slate-400": variant === "secondary",
-            "bg-transparent text-slate-600 hover:bg-slate-100 focus:ring-slate-400": variant === "ghost",
-            "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500": variant === "danger",
-          },
-          {
-            "px-2.5 py-1.5 text-xs": size === "sm",
-            "px-4 py-2 text-sm": size === "md",
-            "px-5 py-2.5 text-sm": size === "lg",
-          },
-          className
-        )}
-        {...props}
-      >
+      <a href={href} target={target} rel={rel} className={cn} style={style} {...rest}>
+        {icon}
         {children}
-      </button>
+      </a>
     );
   }
-);
-Button.displayName = "Button";
+
+  const btnProps = props as ButtonProps;
+  const { as: _a, variant: _v, size: _s, icon: _i, className: _c, style: _s2, children: _ch, ...rest } = btnProps;
+  void _a; void _v; void _s; void _i; void _c; void _s2; void _ch;
+  return (
+    <button {...rest} className={cn} style={style}>
+      {icon}
+      {children}
+    </button>
+  );
+}

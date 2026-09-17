@@ -1,113 +1,324 @@
 "use client";
 
-import { useState, FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Logo } from "@/components/ui/Logo";
+import { Button } from "@/components/ui/Button";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { SectionLabel } from "@/components/ui/SectionLabel";
+import { Skeleton } from "@/components/ui/Skeleton";
 
-export default function RegisterPage() {
+interface InviteValidation {
+  valid: boolean;
+  email?: string;
+  role?: string;
+  expires_at?: string;
+  error?: string;
+}
+
+function RegisterForm() {
   const router = useRouter();
-  const [name, setName] = useState("");
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token") ?? "";
+
+  const [invite, setInvite] = useState<InviteValidation | null>(null);
+  const [loadingInvite, setLoadingInvite] = useState(true);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [company, setCompany] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: FormEvent) => {
+  useEffect(() => {
+    if (!token) {
+      setInvite({ valid: false, error: "Falta el token de invitación" });
+      setLoadingInvite(false);
+      return;
+    }
+    fetch(`/api/auth/validate-invite/${token}`)
+      .then((r) => r.json())
+      .then((data: InviteValidation) => {
+        setInvite(data);
+        if (data.valid && data.email) {
+          setEmail(data.email);
+        }
+        setLoadingInvite(false);
+      })
+      .catch(() => {
+        setInvite({ valid: false, error: "Error al validar la invitación" });
+        setLoadingInvite(false);
+      });
+  }, [token]);
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    if (password.length < 8) {
+      setError("La contraseña debe tener al menos 8 caracteres");
+      return;
+    }
+    if (!name || !company) {
+      setError("Completa todos los campos");
+      return;
+    }
     setLoading(true);
     try {
-      // El worker no tiene endpoint de registro vía API pública —
-      // el admin se crea vía CLI. Redirigimos a login directamente.
-      const res = await api.login({ email, password });
-      localStorage.setItem("charter_token", res.access_token);
+      const res = await fetch("/api/auth/register-invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, email, password, name, company }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Error al crear la cuenta");
+        return;
+      }
       router.push("/dashboard");
-    } catch (err: unknown) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "No se pudo crear la cuenta. Contacta al administrador."
-      );
+      router.refresh();
+    } catch {
+      setError("Error de red");
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  if (loadingInvite) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "var(--space-5)",
+          background: "var(--paper)",
+        }}
+      >
+        <div style={{ width: "100%", maxWidth: 400 }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: "var(--space-8)" }}>
+            <Logo size={32} />
+          </div>
+          <div className="surface" style={{ padding: "var(--space-8)" }}>
+            <SectionLabel>Validando</SectionLabel>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--space-3)",
+                marginTop: "var(--space-4)",
+              }}
+            >
+              <Skeleton height={28} width="60%" />
+              <Skeleton height={14} width="80%" />
+              <Skeleton height={44} />
+              <Skeleton height={44} />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!invite?.valid) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "var(--space-5)",
+          background: "var(--paper)",
+        }}
+      >
+        <div style={{ width: "100%", maxWidth: 420 }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: "var(--space-8)" }}>
+            <Logo size={32} />
+          </div>
+          <div className="surface" style={{ padding: "var(--space-8)" }}>
+            <SectionLabel>Invitación</SectionLabel>
+            <h1
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: "1.75rem",
+                fontWeight: 500,
+                letterSpacing: "-0.02em",
+                marginTop: "var(--space-3)",
+                marginBottom: "var(--space-3)",
+              }}
+            >
+              Invitación no válida
+            </h1>
+            <p
+              style={{
+                color: "var(--mid)",
+                marginBottom: "var(--space-6)",
+                lineHeight: 1.6,
+              }}
+            >
+              {invite?.error || "El enlace de invitación no es válido o ha caducado."}
+            </p>
+            <Button as="a" href="/login" variant="filled" size="md" style={{ width: "100%" }}>
+              Ir a iniciar sesión
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <div className="inline-flex items-center gap-2 mb-2">
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-              <rect width="32" height="32" rx="8" fill="#2563eb" />
-              <path d="M8 10h16M8 16h10M8 22h13" stroke="white" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            <span className="text-xl font-bold text-slate-900">Charter PMO</span>
-          </div>
-          <p className="text-sm text-slate-500">Crea tu cuenta de administrador</p>
-        </div>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "var(--space-5)",
+        background: "var(--paper)",
+      }}
+    >
+      <div style={{ width: "100%", maxWidth: 420 }}>
+        <Link
+          href="/"
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            marginBottom: "var(--space-8)",
+          }}
+        >
+          <Logo size={32} />
+        </Link>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
+        <div className="surface" style={{ padding: "var(--space-8)" }}>
+          <SectionLabel>Crear cuenta</SectionLabel>
+          <h1
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: "2rem",
+              fontWeight: 500,
+              letterSpacing: "-0.02em",
+              marginTop: "var(--space-3)",
+              marginBottom: "var(--space-2)",
+            }}
+          >
+            Bienvenido a Charter
+          </h1>
+          <p
+            style={{
+              color: "var(--mid)",
+              fontSize: "0.9375rem",
+              marginBottom: "var(--space-6)",
+            }}
+          >
+            Invitación válida para <strong style={{ color: "var(--ink)" }}>{email}</strong>.
+          </p>
+
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
-              {error}
+            <div style={{ marginBottom: "var(--space-4)" }}>
+              <ErrorBanner>{error}</ErrorBanner>
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Nombre</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Tu nombre"
-              required
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@test.com"
-              required
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Contraseña</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              minLength={6}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium rounded-lg px-4 py-2.5 text-sm transition-colors"
+          <form
+            onSubmit={handleSubmit}
+            style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}
           >
-            {loading ? "Creando cuenta…" : "Crear cuenta"}
-          </button>
-        </form>
+            <div>
+              <label className="label">Email</label>
+              <input
+                type="email"
+                className="input"
+                value={email}
+                disabled
+                style={{ background: "var(--tint)", color: "var(--mid)" }}
+              />
+            </div>
+            <div>
+              <label className="label">Nombre completo</label>
+              <input
+                type="text"
+                className="input"
+                placeholder="María García"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="label">Empresa</label>
+              <input
+                type="text"
+                className="input"
+                placeholder="Ingeniería Industrial S.L."
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="label">Contraseña</label>
+              <input
+                type="password"
+                className="input"
+                placeholder="Mínimo 8 caracteres"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={8}
+              />
+            </div>
+            <Button
+              type="submit"
+              variant="filled"
+              size="md"
+              disabled={loading}
+              style={{ width: "100%", marginTop: "var(--space-2)" }}
+            >
+              {loading ? "Creando cuenta…" : "Crear cuenta"}
+            </Button>
+          </form>
 
-        <p className="text-center text-sm text-slate-500 mt-4">
-          ¿Ya tienes cuenta?{" "}
-          <Link href="/login" className="text-blue-600 hover:underline font-medium">
-            Inicia sesión
-          </Link>
-        </p>
+          <p
+            style={{
+              textAlign: "center",
+              marginTop: "var(--space-6)",
+              fontSize: "0.9375rem",
+              color: "var(--mid)",
+            }}
+          >
+            ¿Ya tienes cuenta?{" "}
+            <Link href="/login" style={{ color: "var(--accent)" }}>
+              Iniciar sesión
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          style={{
+            minHeight: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "var(--paper)",
+          }}
+        >
+          <Skeleton height={32} width={120} />
+        </div>
+      }
+    >
+      <RegisterForm />
+    </Suspense>
   );
 }

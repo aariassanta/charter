@@ -1,242 +1,260 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Modal } from "@/components/Modal";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { ConfidencePill } from "@/components/ConfidencePill";
-import { SectionLabel } from "@/components/ui/SectionLabel";
-import { Rule } from "@/components/ui/Rule";
-import { api } from "@/lib/api";
-import type { Extraction } from "@/lib/api";
+import { useState, useEffect } from "react";
 import {
-  ShieldCheck,
-  Download,
-  FileText,
-  FileJson,
-  Loader2,
+  Sparkles, Download, FileText,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Modal } from "./ui/Modal";
+import { Button } from "./ui/Button";
+import { SectionLabel } from "./ui/SectionLabel";
+import { Badge } from "./ui/Badge";
+import { Rule } from "./ui/Rule";
+import ConfidencePill from "./ConfidencePill";
+
+type Extraction = {
+  id: number;
+  project_name: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  offer_summary: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  total_budget: string | null;
+  milestones: string | null;
+  tasks: string | null;
+  deliverables: string | null;
+  stakeholders: string | null;
+  risks: string | null;
+  assumptions: string | null;
+  constraints: string | null;
+  technical_specs: string | null;
+  pdf_metadata: string | null;
+  stage: string | null;
+  confidence_overall: number | null;
+  error: string | null;
+  created_at: string;
+  job_id?: string | null;
+};
+
+type Documents = {
+  dossier_md: string;
+  charter_md: string;
+  kickoff_md: string;
+  stats: Record<string, unknown>;
+};
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr + "Z").getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Hace un momento";
+  if (mins < 60) return `Hace ${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `Hace ${hrs}h`;
+  return `Hace ${Math.floor(hrs / 24)}d`;
+}
+
+// ── Markdown tab renderer ────────────────────────────────────────────────────────
+
+const markdownStyles: React.CSSProperties = {
+  fontSize: "0.875rem",
+  lineHeight: 1.7,
+  color: "var(--ink-2)",
+};
+
+const markdownComponents = {
+  h1: ({ children }: { children?: React.ReactNode }) => (
+    <h1 style={{ fontFamily: "var(--font-display)", fontSize: "1.5rem", fontWeight: 500, letterSpacing: "-0.02em", marginBottom: "0.75rem", marginTop: "1.5rem", color: "var(--ink)" }}>{children}</h1>
+  ),
+  h2: ({ children }: { children?: React.ReactNode }) => (
+    <h2 style={{ fontFamily: "var(--font-display)", fontSize: "1.125rem", fontWeight: 500, letterSpacing: "-0.01em", marginBottom: "0.5rem", marginTop: "1.25rem", color: "var(--ink)" }}>{children}</h2>
+  ),
+  h3: ({ children }: { children?: React.ReactNode }) => (
+    <h3 style={{ fontSize: "0.9375rem", fontWeight: 600, marginBottom: "0.375rem", marginTop: "1rem", color: "var(--ink)" }}>{children}</h3>
+  ),
+  p: ({ children }: { children?: React.ReactNode }) => (
+    <p style={{ marginBottom: "0.75rem" }}>{children}</p>
+  ),
+  ul: ({ children }: { children?: React.ReactNode }) => (
+    <ul style={{ paddingLeft: "1.25rem", marginBottom: "0.75rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>{children}</ul>
+  ),
+  ol: ({ children }: { children?: React.ReactNode }) => (
+    <ol style={{ paddingLeft: "1.25rem", marginBottom: "0.75rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>{children}</ol>
+  ),
+  li: ({ children }: { children?: React.ReactNode }) => (
+    <li style={{ lineHeight: 1.6 }}>{children}</li>
+  ),
+  table: ({ children }: { children?: React.ReactNode }) => (
+    <div style={{ overflowX: "auto", marginBottom: "1rem" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8125rem" }}>{children}</table>
+    </div>
+  ),
+  th: ({ children }: { children?: React.ReactNode }) => (
+    <th style={{ textAlign: "left", padding: "0.5rem 0.75rem", background: "var(--tint)", borderBottom: "1px solid var(--rule)", fontWeight: 600, color: "var(--ink)", whiteSpace: "nowrap" }}>{children}</th>
+  ),
+  td: ({ children }: { children?: React.ReactNode }) => (
+    <td style={{ padding: "0.5rem 0.75rem", borderBottom: "1px solid var(--faint)", verticalAlign: "top" }}>{children}</td>
+  ),
+  blockquote: ({ children }: { children?: React.ReactNode }) => (
+    <blockquote style={{ borderLeft: "3px solid var(--rule)", paddingLeft: "0.75rem", marginLeft: 0, marginBottom: "0.75rem", color: "var(--mid)", fontStyle: "italic" }}>{children}</blockquote>
+  ),
+  code: ({ children }: { children?: React.ReactNode }) => (
+    <code style={{ background: "var(--tint)", padding: "0.1em 0.35em", borderRadius: "3px", fontSize: "0.8125em" }}>{children}</code>
+  ),
+  pre: ({ children }: { children?: React.ReactNode }) => (
+    <pre style={{ background: "var(--tint)", padding: "0.75rem 1rem", borderRadius: "var(--radius-md)", overflowX: "auto", marginBottom: "0.75rem", fontSize: "0.8125rem" }}>{children}</pre>
+  ),
+  strong: ({ children }: { children?: React.ReactNode }) => (
+    <strong style={{ fontWeight: 600, color: "var(--ink)" }}>{children}</strong>
+  ),
+  hr: () => <hr style={{ border: "none", borderTop: "1px solid var(--rule)", margin: "1rem 0" }} />,
+};
+
+// ── Markdown document view (Charter/Dossier/Kickoff) ────────────────────────────
+
+function DocumentView({ label, md, loading, error }: { label: string; md: string; loading: boolean; error: string | null }) {
+  if (loading) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "var(--space-8)", color: "var(--mid)" }}>
+        Cargando {label}…
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div style={{ padding: "var(--space-4)", background: "var(--tint)", borderRadius: "var(--radius-md)", fontSize: "0.875rem", color: "var(--mid)", fontStyle: "italic" }}>
+        {error}
+      </div>
+    );
+  }
+  if (!md) {
+    return (
+      <div style={{ padding: "var(--space-4)", background: "var(--tint)", borderRadius: "var(--radius-md)", fontSize: "0.875rem", color: "var(--mid)", fontStyle: "italic" }}>
+        {label} no disponible.
+      </div>
+    );
+  }
+  return (
+    <div style={markdownStyles}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+        {md}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
+// ── Main DetailModal ──────────────────────────────────────────────────────────
 
 type Tab = "charter" | "dossier" | "kickoff";
 
-interface DetailModalProps {
-  extraction: Extraction;
+export function DetailModal({
+  ext,
+  onClose,
+  onImprove,
+}: {
+  ext: Extraction;
   onClose: () => void;
-  onImprove: () => void;
-}
+  onImprove: (id: number) => void;
+}) {
+  const [tab, setTab] = useState<Tab>("charter");
 
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
+  // Documents fetched from worker (charter_md, dossier_md, kickoff_md)
+  const [docs, setDocs] = useState<Documents | null>(null);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [docsError, setDocsError] = useState<string | null>(null);
 
-export function DetailModal({ extraction, onClose, onImprove }: DetailModalProps) {
-  const [activeTab, setActiveTab] = useState<Tab>("charter");
-  const [documents, setDocuments] = useState<Record<Tab, string>>({
-    charter: "",
-    dossier: "",
-    kickoff: "",
-  });
-  const [loading, setLoading] = useState(true);
-  const [downloading, setDownloading] = useState<Tab | null>(null);
-  const [error, setError] = useState("");
-
+  // Fetch documents for whichever tab needs them
   useEffect(() => {
-    setLoading(true);
-    api.getDocuments(extraction.id)
-      .then((docs) => {
-        setDocuments({
-          charter: docs.charter ?? "",
-          dossier: docs.dossier ?? "",
-          kickoff: docs.kickoff ?? "",
-        });
+    if (docs !== null) return;
+    setDocsLoading(true);
+    setDocsError(null);
+    fetch(`/api/extractions/${ext.id}/documents`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.error) { setDocsError(d.error); }
+        else { setDocs(d as Documents); }
       })
-      .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "No se pudieron cargar los documentos");
-      })
-      .finally(() => setLoading(false));
-  }, [extraction.id]);
+      .catch((e) => setDocsError(String(e)))
+      .finally(() => setDocsLoading(false));
+  }, [tab, ext.id, docs]);
 
-  const handleDownload = useCallback(
-    async (format: "md" | "pdf" | "json") => {
-      const tab = activeTab;
-      setDownloading(tab);
-      try {
-        const res = await api.downloadDocument(extraction.id, tab, format);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  function handleExport(format: "json" | "markdown" | "pdf") {
+    const url = `/api/extractions/${ext.id}/export?format=${format}`;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${ext.project_name}.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
 
-        if (format === "json") {
-          // Para JSON, extraemos el texto del documento activo y lo devolvemos como JSON
-          const text = documents[tab];
-          const jsonData = {
-            filename: extraction.filename,
-            type: tab,
-            content: text,
-            extracted_at: extraction.updated_at,
-          };
-          const blob = new Blob([JSON.stringify(jsonData, null, 2)], {
-            type: "application/json",
-          });
-          downloadBlob(blob, `${extraction.id}_${tab}.json`);
-        } else {
-          // MD y PDF vienen como blob del worker
-          const blob = await res.blob();
-          const extension = format === "md" ? "md" : "pdf";
-          downloadBlob(blob, `${extraction.id}_${tab}.${extension}`);
-        }
-      } catch (err: unknown) {
-        alert(`Error al descargar: ${err instanceof Error ? err.message : "verifica el worker"}`);
-      } finally {
-        setDownloading(null);
-      }
-    },
-    [activeTab, extraction.id, extraction.filename, extraction.updated_at, documents]
-  );
-
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "charter", label: "Charter" },
-    { id: "dossier", label: "Dossier" },
-    { id: "kickoff", label: "Kickoff" },
+  // Tabs
+  const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: "charter", label: "Charter", icon: <FileText size={13} /> },
+    { id: "dossier", label: "Dossier", icon: <FileText size={13} /> },
+    { id: "kickoff", label: "Kick-off", icon: <FileText size={13} /> },
   ];
 
-  const tabLabels: Record<Tab, string> = {
-    charter: "Project Charter",
-    dossier: "Dossier de Evaluación",
-    kickoff: "Acta de Kick-off",
-  };
+  const footer = (
+    <>
+      <div style={{ display: "flex", gap: "var(--space-2)" }}>
+        <Button variant="outline" size="sm" icon={<Sparkles size={13} />} onClick={() => onImprove(ext.id)}>Mejorar</Button>
+        <Button variant="filled" size="sm" icon={<Download size={13} />} onClick={() => handleExport("pdf")}>PDF</Button>
+        <Button variant="outline" size="sm" icon={<Download size={13} />} onClick={() => handleExport("markdown")}>MD</Button>
+        <Button variant="outline" size="sm" icon={<Download size={13} />} onClick={() => handleExport("json")}>JSON</Button>
+      </div>
+      <Button variant="ghost" size="sm" onClick={onClose}>Cerrar</Button>
+    </>
+  );
 
   return (
-    <Modal open onClose={onClose} size="xl">
-      {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="px-6 pt-5 pb-0 flex-shrink-0">
-        <div className="flex items-start justify-between mb-4">
-          <div className="min-w-0">
-            <h2 className="text-xl font-bold text-slate-900 truncate">
-              {extraction.filename}
-            </h2>
-            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-              <ConfidencePill value={extraction.confidence ?? 0} />
-              <Badge
-                variant={
-                  extraction.status === "done"
-                    ? "success"
-                    : extraction.status === "error"
-                    ? "error"
-                    : "warning"
-                }
-              >
-                {extraction.status}
-              </Badge>
-              <span className="text-xs text-slate-400">
-                {new Date(extraction.updated_at).toLocaleString("es-ES")}
-              </span>
-            </div>
-          </div>
-          <button
-            onClick={onImprove}
-            className="text-sm text-blue-600 hover:underline font-medium flex-shrink-0 ml-4"
-          >
-            Mejorar…
-          </button>
-        </div>
-
-        {/* ── Tabs ──────────────────────────────────────────────────────── */}
-        <div className="flex border-b border-slate-200 -mb-px">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors mr-1 ${
-                activeTab === tab.id
-                  ? "border-blue-600 text-blue-600"
-                  : "border-transparent text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Content ─────────────────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-6 py-5">
-        {loading ? (
-          <div className="flex items-center justify-center py-16 text-slate-400">
-            <Loader2 className="w-6 h-6 animate-spin mr-2" />
-            <span className="text-sm">Cargando {tabLabels[activeTab]}…</span>
-          </div>
-        ) : error ? (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
-            {error}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <SectionLabel>{tabLabels[activeTab]}</SectionLabel>
-            <Rule className="my-2" />
-            <pre className="text-sm text-slate-700 whitespace-pre-wrap font-mono leading-relaxed bg-slate-50 rounded-xl p-5 border border-slate-200 max-h-[60vh] overflow-y-auto">
-              {documents[activeTab] || "Sin contenido disponible."}
-            </pre>
-          </div>
+    <Modal open onClose={onClose} size="wide" title={ext.project_name} subtitle={`Charter · ${timeAgo(ext.created_at)}`} footer={footer}>
+      {/* Meta row */}
+      <div style={{ marginBottom: "var(--space-4)", display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap" }}>
+        <ConfidencePill score={ext.confidence_overall ?? null} />
+        {ext.stage && ext.stage !== "completed" && ext.stage !== "failed" && (
+          <span className="badge badge--muted">{ext.stage}</span>
         )}
       </div>
 
-      {/* ── Action Bar ──────────────────────────────────────────────────── */}
-      <div className="flex-shrink-0 px-6 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl">
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Confianza */}
-          <div className="flex items-center gap-2 mr-2">
-            <ShieldCheck className="w-4 h-4 text-slate-500" />
-            <span className="text-sm text-slate-600">Confianza:</span>
-            <ConfidencePill value={extraction.confidence ?? 0} />
-          </div>
-
-          <div className="h-5 w-px bg-slate-300" />
-
-          {/* Descargar MD */}
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => handleDownload("md")}
-            disabled={downloading !== null}
+      {/* Tab bar */}
+      <div style={{ display: "flex", gap: "var(--space-1)", marginBottom: "var(--space-5)", borderBottom: "1px solid var(--rule)", paddingBottom: 0 }}>
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.375rem",
+              padding: "var(--space-2) var(--space-3)",
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              fontSize: "0.875rem",
+              fontWeight: 500,
+              color: tab === t.id ? "var(--ink)" : "var(--mid)",
+              borderBottom: tab === t.id ? "2px solid var(--ink)" : "2px solid transparent",
+              marginBottom: -1,
+              transition: "all 0.15s",
+            }}
           >
-            <Download className="w-3.5 h-3.5" />
-            MD · {tabLabels[activeTab].split(" ")[0]}
-          </Button>
+            {t.icon}
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-          {/* Descargar PDF */}
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => handleDownload("pdf")}
-            disabled={downloading !== null}
-          >
-            <FileText className="w-3.5 h-3.5" />
-            PDF · {tabLabels[activeTab].split(" ")[0]}
-          </Button>
-
-          {/* Descargar JSON */}
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => handleDownload("json")}
-            disabled={downloading !== null}
-          >
-            <FileJson className="w-3.5 h-3.5" />
-            JSON · {tabLabels[activeTab].split(" ")[0]}
-          </Button>
-        </div>
-
-        {downloading && (
-          <p className="text-xs text-slate-500 mt-2 flex items-center gap-1.5">
-            <Loader2 className="w-3 h-3 animate-spin" />
-            Descargando… ({tabLabels[downloading as Tab].split(" ")[0]})
-          </p>
+      {/* Tab content */}
+      <div style={{ maxHeight: "70vh", overflowY: "auto" }}>
+        {tab === "charter" && (
+          <DocumentView label="Charter" md={docs?.charter_md ?? ""} loading={docsLoading} error={docsError} />
+        )}
+        {tab === "dossier" && (
+          <DocumentView label="Dossier" md={docs?.dossier_md ?? ""} loading={docsLoading} error={docsError} />
+        )}
+        {tab === "kickoff" && (
+          <DocumentView label="Kick-off" md={docs?.kickoff_md ?? ""} loading={docsLoading} error={docsError} />
         )}
       </div>
     </Modal>

@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import { Logo } from "@/components/ui/Logo";
+import { Button } from "@/components/ui/Button";
+import { ErrorBanner } from "@/components/ui/ErrorBanner";
+import { SectionLabel } from "@/components/ui/SectionLabel";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,83 +15,132 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: FormEvent) => {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      const res = await api.login({ email, password });
-      localStorage.setItem("charter_token", res.access_token);
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Error al iniciar sesión");
+        return;
+      }
       router.push("/dashboard");
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error de autenticación");
+      router.refresh();
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="mb-8 text-center">
-          <div className="inline-flex items-center gap-2 mb-2">
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-              <rect width="32" height="32" rx="8" fill="#2563eb" />
-              <path d="M8 10h16M8 16h10M8 22h13" stroke="white" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            <span className="text-xl font-bold text-slate-900">Charter PMO</span>
-          </div>
-          <p className="text-sm text-slate-500">Inicia sesión en tu cuenta</p>
-        </div>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "var(--space-5)",
+        background: "var(--paper)",
+      }}
+    >
+      <div style={{ width: "100%", maxWidth: 400 }}>
+        <Link
+          href="/"
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            marginBottom: "var(--space-8)",
+          }}
+        >
+          <Logo size={32} />
+        </Link>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-4">
+        <div className="surface" style={{ padding: "var(--space-8)" }}>
+          <SectionLabel>Acceso</SectionLabel>
+          <h1
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: "2rem",
+              fontWeight: 500,
+              letterSpacing: "-0.02em",
+              marginTop: "var(--space-3)",
+              marginBottom: "var(--space-2)",
+            }}
+          >
+            Iniciar sesión
+          </h1>
+          <p
+            style={{
+              color: "var(--mid)",
+              fontSize: "0.9375rem",
+              marginBottom: "var(--space-6)",
+            }}
+          >
+            Accede a tu cuenta de Charter.
+          </p>
+
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
-              {error}
+            <div style={{ marginBottom: "var(--space-4)" }}>
+              <ErrorBanner>{error}</ErrorBanner>
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@test.com"
-              required
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Contraseña</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium rounded-lg px-4 py-2.5 text-sm transition-colors"
+          <form
+            onSubmit={handleSubmit}
+            style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}
           >
-            {loading ? "Entrando…" : "Iniciar sesión"}
-          </button>
-        </form>
+            <div>
+              <label className="label">Email</label>
+              <input
+                type="email"
+                className="input"
+                placeholder="tu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="label">Contraseña</label>
+              <input
+                type="password"
+                className="input"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            <Button
+              type="submit"
+              variant="filled"
+              size="md"
+              disabled={loading}
+              style={{ width: "100%", marginTop: "var(--space-2)" }}
+            >
+              {loading ? "Iniciando…" : "Iniciar sesión"}
+            </Button>
+          </form>
 
-        <p className="text-center text-sm text-slate-500 mt-4">
-          ¿No tienes cuenta?{" "}
-          <Link href="/register" className="text-blue-600 hover:underline font-medium">
-            Regístrate
-          </Link>
-        </p>
+          <p
+            style={{
+              textAlign: "center",
+              marginTop: "var(--space-6)",
+              fontSize: "0.9375rem",
+              color: "var(--mid)",
+            }}
+          >
+            ¿No tienes cuenta?{" "}
+            <Link href="/register" style={{ color: "var(--accent)" }}>
+              Regístrate
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

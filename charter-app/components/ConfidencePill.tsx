@@ -1,45 +1,57 @@
-import { clsx } from "clsx";
+"use client";
 
-interface ConfidencePillProps {
-  value: number; // 0–100
-  className?: string;
+interface Props {
+  score: number | null;
+  size?: "sm" | "md" | "lg";
 }
 
-function getColor(confidence: number) {
-  if (confidence >= 80) return "bg-green-100 text-green-700";
-  if (confidence >= 60) return "bg-yellow-100 text-yellow-700";
-  return "bg-red-100 text-red-700";
-}
+export default function ConfidencePill({ score, size = "md" }: Props) {
+  if (score === null || score === undefined) {
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          padding: size === "lg" ? "0.25rem 0.75rem" : "0.125rem 0.5rem",
+          borderRadius: 9999,
+          background: "var(--bg-hover)",
+          color: "var(--text-muted)",
+          fontSize: size === "lg" ? "0.8125rem" : "0.6875rem",
+          fontWeight: 600,
+        }}
+      >
+        Sin evaluar
+      </span>
+    );
+  }
 
-function getLabel(confidence: number) {
-  if (confidence >= 90) return "Excelente";
-  if (confidence >= 80) return "Muy alta";
-  if (confidence >= 70) return "Alta";
-  if (confidence >= 60) return "Media";
-  return "Baja";
-}
+  const color = score >= 80 ? "#15803d" : score >= 60 ? "#2563eb" : score >= 40 ? "#b45309" : "#dc2626";
+  const bg = score >= 80 ? "#dcfce7" : score >= 60 ? "#dbeafe" : score >= 40 ? "#fef3c7" : "#fee2e2";
+  const label = score >= 80 ? "Alta" : score >= 60 ? "Buena" : score >= 40 ? "Media" : "Baja";
 
-export function ConfidencePill({ value, className }: ConfidencePillProps) {
   return (
     <span
-      className={clsx(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold",
-        getColor(value),
-        className
-      )}
-      title={`Confianza: ${value}% — ${getLabel(value)}`}
+      aria-label={`Confianza del charter: ${score}/100 (${label})`}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "0.375rem",
+        padding: size === "lg" ? "0.25rem 0.75rem" : "0.125rem 0.5rem",
+        borderRadius: 9999,
+        background: bg,
+        color: color,
+        fontSize: size === "lg" ? "0.8125rem" : "0.6875rem",
+        fontWeight: 700,
+      }}
     >
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-        <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.5" />
-        <path
-          d="M4 6.5l1.5 1.5L8 4"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-      {value}% · {getLabel(value)}
+      <span style={{
+        display: "inline-block",
+        width: size === "lg" ? 8 : 6,
+        height: size === "lg" ? 8 : 6,
+        borderRadius: "50%",
+        background: color,
+      }} />
+      Confianza: {score}/100 · {label}
     </span>
   );
 }

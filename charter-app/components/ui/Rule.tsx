@@ -1,9 +1,6 @@
-interface RuleProps {
-  className?: string;
-}
+import React from "react";
 
-export function Rule({ className }: RuleProps) {
-  return (
-    <hr className={`border-slate-200 ${className ?? "my-4"}`} />
-  );
+/** Hairline horizontal divider. */
+export function Rule({ style }: { style?: React.CSSProperties }) {
+  return <hr className="rule" style={style} />;
 }

@@ -1,27 +1,39 @@
-interface ErrorBannerProps {
-  message: string;
-  onRetry?: () => void;
-}
+"use client";
 
-export function ErrorBanner({ message, onRetry }: ErrorBannerProps) {
+import React from "react";
+import { AlertCircle } from "lucide-react";
+
+/**
+ * Inline notification strip. Restrained: single accent border, no red wash.
+ * Replaces the duplicate red-bordered divs in login/register.
+ */
+export function ErrorBanner({
+  children,
+  variant = "error",
+  icon: Icon = AlertCircle,
+}: {
+  children: React.ReactNode;
+  variant?: "error" | "success" | "info";
+  icon?: React.ComponentType<{ size?: number; strokeWidth?: number; "aria-hidden"?: boolean | "true" | "false" }>;
+}) {
   return (
-    <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
-      <svg className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 20 20" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-          d="M10 18a8 8 0 100-16 8 8 0 000 16zM9 13h2v3H9zM9 8h2v2H9z" />
-      </svg>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm text-red-700 font-medium">Error</p>
-        <p className="text-sm text-red-600 mt-0.5 break-all">{message}</p>
-      </div>
-      {onRetry && (
-        <button
-          onClick={onRetry}
-          className="text-sm text-red-700 font-medium hover:underline flex-shrink-0"
-        >
-          Reintentar
-        </button>
-      )}
+    <div
+      role="alert"
+      style={{
+        display: "flex",
+        alignItems: "flex-start",
+        gap: "var(--space-3)",
+        padding: "var(--space-3) var(--space-4)",
+        borderLeft: `2px solid var(--accent)`,
+        background: "var(--tint)",
+        borderRadius: "var(--radius-sm)",
+        color: "var(--ink)",
+        fontSize: "0.875rem",
+        lineHeight: 1.5,
+      }}
+    >
+      <Icon size={16} strokeWidth={1.6} aria-hidden={true} />
+      <div style={{ flex: 1 }}>{children}</div>
     </div>
   );
 }
