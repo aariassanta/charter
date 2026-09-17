@@ -50,3 +50,13 @@ logs/
 *.docx
 *.html        # Gantt exportado (en docs/ sí se versiona)
 !.github/
+
+# Backup directories (created by agent restores — never commit)
+charter-app.*-backup/
+charter-app.bak/
+charter-app.GIT-HUB-*/
+charter-app.SWARM-PROFESSIONAL-*/
+
+# SQLite WAL files (excluded at root level — charter-app/ has its own .gitignore)
+*.db-shm
+*.db-wal
